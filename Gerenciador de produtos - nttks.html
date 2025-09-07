@@ -19,17 +19,28 @@
 
         // Define o nível de log para ver mensagens de depuração no console.
         setLogLevel('debug');
-
+        
         const productForm = document.getElementById('product-form');
         const userIdElement = document.getElementById('user-id');
         const productsListContainer = document.getElementById('products-list-container');
         
         let db, auth;
         
-        // As variáveis globais __app_id, __firebase_config e __initial_auth_token são fornecidas pelo ambiente.
+        // As variáveis globais __app_id, __initial_auth_token são fornecidas pelo ambiente.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // CONFIGURAÇÃO DO FIREBASE (COLE AS INFORMAÇÕES AQUI)
+        const firebaseConfig = {
+          apiKey: "AIzaSyC1sdGkueXZyp3_lK4gxZ1p1VbbZETHvzI",
+          authDomain: "nttks-project.firebaseapp.com",
+          projectId: "nttks-project",
+          storageBucket: "nttks-project.firebasestorage.app",
+          messagingSenderId: "962615395708",
+          appId: "1:962615395708:web:f4532478e4db7508f190f9",
+          measurementId: "G-43BSE565DY"
+        };
+        // FIM DA CONFIGURAÇÃO DO FIREBASE
 
         if (firebaseConfig) {
             const app = initializeApp(firebaseConfig);
