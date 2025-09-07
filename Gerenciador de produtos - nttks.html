@@ -13,7 +13,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -28,17 +28,16 @@
         
         // As variáveis globais __app_id, __initial_auth_token são fornecidas pelo ambiente.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // CONFIGURAÇÃO DO FIREBASE (COLE AS INFORMAÇÕES AQUI)
-        const firebaseConfig = {
-          apiKey: "AIzaSyC1sdGkueXZyp3_lK4gxZ1p1VbbZETHvzI",
-          authDomain: "nttks-project.firebaseapp.com",
-          projectId: "nttks-project",
-          storageBucket: "nttks-project.firebasestorage.app",
-          messagingSenderId: "962615395708",
-          appId: "1:962615395708:web:f4532478e4db7508f190f9",
-          measurementId: "G-43BSE565DY"
+        const firebaseConfig ={
+            apiKey: "AIzaSyC1sdGkueXZyp3_lK4gxZ1p1VbbZETHvzI",
+            authDomain: "nttks-project.firebaseapp.com",
+            projectId: "nttks-project",
+            storageBucket: "nttks-project.firebasestorage.app",
+            messagingSenderId: "962615395708",
+            appId: "1:962615395708:web:f4532478e4db7508f190f9",
+            measurementId: "G-43BSE565DY"
         };
         // FIM DA CONFIGURAÇÃO DO FIREBASE
 
@@ -50,11 +49,7 @@
             // Tenta fazer login com o token fornecido, caso contrário, faz login anonimamente.
             async function authenticate() {
                 try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    await signInAnonymously(auth);
                     const userId = auth.currentUser.uid;
                     userIdElement.textContent = `Seu ID de usuário: ${userId}`;
                     setupRealtimeListener(userId);
