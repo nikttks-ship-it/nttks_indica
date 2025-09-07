@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nttks_indica - Catálogo de Produtos</title>
+    <!-- Carrega o Tailwind CSS para estilização fácil -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carrega a fonte 'Inter' do Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Define o nível de log para ver mensagens de depuração no console.
+        setLogLevel('debug');
+
+        const productsContainer = document.getElementById('products-container');
+        const statusMessage = document.getElementById('status-message');
+        const userIdElement = document.getElementById('user-id');
+        const searchInput = document.getElementById('product-search');
+        const segmentSelect = document.getElementById('segment-select');
+        const marketplaceSelect = document.getElementById('marketplace-select');
+        const minPriceInput = document.getElementById('min-price');
+        const maxPriceInput = document.getElementById('max-price');
+
+        let db, auth;
+        let allProducts = [];
+
+        // As variáveis globais __app_id, __firebase_config e __initial_auth_token são fornecidas pelo ambiente.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // Tenta fazer login com o token fornecido, caso contrário, faz login anonimamente.
+            async function authenticate() {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    const userId = auth.currentUser.uid;
+                    userIdElement.textContent = `Seu ID de usuário: ${userId}`;
+                    setupRealtimeListener(userId);
+                } catch (error) {
+                    console.error("Erro de autenticação:", error);
+                    statusMessage.textContent = 'Erro ao autenticar. Por favor, tente novamente.';
+                }
+            }
+            authenticate();
+        } else {
+            console.error('Erro: A configuração do Firebase não foi encontrada.');
+            statusMessage.textContent = 'Erro: A configuração do Firebase não foi encontrada.';
+        }
+
+        // Configura o listener em tempo real para o Firestore.
+        function setupRealtimeListener(userId) {
+            const productsCollection = collection(db, `artifacts/${appId}/users/${userId}/products`);
+            onSnapshot(productsCollection, (querySnapshot) => {
+                const products = [];
+                const segments = new Set();
+                const marketplaces = new Set();
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    products.push({ id: doc.id, ...data });
+                    if (data.segment) segments.add(data.segment);
+                    if (data.marketplace) marketplaces.add(data.marketplace);
+                });
+
+                allProducts = products;
+                
+                // Popula os seletores de Segmento e Marketplace
+                populateSelect(segmentSelect, [...segments]);
+                populateSelect(marketplaceSelect, [...marketplaces]);
+
+                filterAndRenderProducts();
+                console.log('Produtos carregados com sucesso.');
+            }, (error) => {
+                console.error("Erro ao carregar os produtos:", error);
+                statusMessage.textContent = 'Erro ao carregar os produtos. Verifique as permissões.';
+            });
+        }
+
+        // Função para popular os seletores de filtro
+        function populateSelect(selectElement, options) {
+            selectElement.innerHTML = `<option value="">Todos</option>`;
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                selectElement.appendChild(optionElement);
+            });
+        }
+
+        // Função para criar o HTML de um produto
+        function createProductCard(product) {
+            const priceHtml = product.price ? `<p class="mt-1 text-sm font-semibold text-green-600">R$ ${parseFloat(product.price).toFixed(2).replace('.', ',')}</p>` : '';
+            const productCodeHtml = product.productCode ? `<p class="mt-1 text-xs text-gray-500">Cód: ${product.productCode}</p>` : '';
+            return `
+                <div class="product-card flex flex-col md:flex-row items-center bg-gray-50 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                    <img src="${product.imageUrl || 'https://placehold.co/400x300/CCCCCC/FFFFFF?text=Sem+Imagem'}" 
+                         onerror="this.src='https://placehold.co/400x300/CCCCCC/FFFFFF?text=Sem+Imagem';"
+                         alt="Imagem do produto: ${product.name}" 
+                         class="w-full h-48 md:h-28 md:w-36 rounded-lg object-cover mb-4 md:mb-0 md:mr-4">
+                    <div class="flex-1 text-center md:text-left">
+                        <h2 class="text-xl font-semibold text-gray-900">${product.name}</h2>
+                        ${productCodeHtml}
+                        <p class="mt-1 text-gray-600">${product.description || ''}</p>
+                        <p class="text-xs text-gray-500">Segmento: ${product.segment || 'N/A'}</p>
+                        <p class="text-xs text-gray-500">Marketplace: ${product.marketplace || 'N/A'}</p>
+                        ${priceHtml}
+                        <a href="${product.link}" target="_blank" rel="noopener noreferrer"
+                           class="mt-3 inline-block w-full md:w-auto px-6 py-2 text-center text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-full shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105">
+                           Comprar agora
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Função para filtrar e renderizar produtos com base na pesquisa
+        function filterAndRenderProducts() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedSegment = segmentSelect.value;
+            const selectedMarketplace = marketplaceSelect.value;
+            const minPrice = parseFloat(minPriceInput.value) || 0;
+            const maxPrice = parseFloat(maxPriceInput.value) || Infinity;
+
+            const filteredProducts = allProducts.filter(product => {
+                const matchesSearch = product.name && product.name.toLowerCase().includes(searchTerm);
+                const matchesSegment = !selectedSegment || (product.segment && product.segment.toLowerCase() === selectedSegment.toLowerCase());
+                const matchesMarketplace = !selectedMarketplace || (product.marketplace && product.marketplace.toLowerCase() === selectedMarketplace.toLowerCase());
+                const productPrice = parseFloat(product.price);
+                const matchesPrice = (productPrice >= minPrice) && (productPrice <= maxPrice);
+
+                return matchesSearch && matchesSegment && matchesMarketplace && matchesPrice;
+            });
+            
+            if (filteredProducts.length === 0 && allProducts.length > 0) {
+                productsContainer.classList.add('hidden');
+                statusMessage.classList.remove('hidden');
+                statusMessage.textContent = 'Nenhum produto encontrado com os filtros selecionados.';
+            } else if (filteredProducts.length === 0 && allProducts.length === 0) {
+                 statusMessage.textContent = 'Nenhum produto encontrado. Adicione produtos ao seu catálogo.';
+            } else {
+                 statusMessage.classList.add('hidden');
+                 productsContainer.classList.remove('hidden');
+                 productsContainer.innerHTML = filteredProducts.map(createProductCard).join('');
+            }
+        }
+
+        // Adiciona um listener para os filtros
+        searchInput.addEventListener('input', filterAndRenderProducts);
+        segmentSelect.addEventListener('change', filterAndRenderProducts);
+        marketplaceSelect.addEventListener('change', filterAndRenderProducts);
+        minPriceInput.addEventListener('input', filterAndRenderProducts);
+        maxPriceInput.addEventListener('input', filterAndRenderProducts);
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            @apply bg-gray-100 text-gray-800;
+        }
+        .container-wrapper {
+            @apply flex justify-center items-center min-h-screen p-4;
+        }
+        .product-form input, .product-form textarea {
+            @apply p-3 border rounded-lg w-full text-sm;
+        }
+        .product-form label {
+            @apply text-sm font-medium text-gray-700 block mb-1;
+        }
+    </style>
+</head>
+<body class="container-wrapper">
+    <main class="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-lg border-2 border-gray-200">
+        <!-- Cabeçalho do perfil -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                Nttks_indica
+            </h1>
+            <p class="mt-2 text-lg text-gray-600">
+                Seu guia de produtos incríveis e promoções imperdíveis.
+            </p>
+        </header>
+
+        <!-- Informação do Usuário -->
+        <p id="user-id" class="text-center text-sm text-gray-500 mb-4"></p>
+
+        <!-- Filtros de pesquisa -->
+        <section class="mb-6 grid gap-4 md:grid-cols-2">
+            <input type="text" id="product-search" placeholder="Pesquisar por nome..." class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow">
+            
+            <div class="grid grid-cols-2 gap-4">
+                <select id="segment-select" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow">
+                    <option value="">Todos os Segmentos</option>
+                </select>
+                <select id="marketplace-select" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow">
+                    <option value="">Todos os Marketplaces</option>
+                </select>
+            </div>
+
+            <div class="md:col-span-2 grid grid-cols-2 gap-4">
+                <div class="flex items-center">
+                    <label for="min-price" class="text-sm font-medium text-gray-700 mr-2">Mínimo:</label>
+                    <input type="number" id="min-price" placeholder="Preço mínimo" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow">
+                </div>
+                <div class="flex items-center">
+                    <label for="max-price" class="text-sm font-medium text-gray-700 mr-2">Máximo:</label>
+                    <input type="number" id="max-price" placeholder="Preço máximo" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow">
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção de produtos e mensagens de status -->
+        <section id="status-message" class="text-center text-lg text-gray-500">
+            Carregando produtos...
+        </section>
+        <section id="products-container" class="grid gap-6 hidden">
+            <!-- Os produtos serão injetados aqui pelo JavaScript -->
+        </section>
+
+        <!-- Rodapé -->
+        <footer class="mt-8 text-center text-sm text-gray-500">
+            <p>
+                Nttks_indica - your Shopping Guide.
+            </p>
+        </footer>
+    </main>
+</body>
+</html>
